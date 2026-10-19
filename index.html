@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<!--
+==========================================================================
+ PyHero: ТОЛЫҚ КОД (сайт + Google Sheets скрипті бір файлда)
+==========================================================================
+
+ 1-ҚАДАМ. GOOGLE ЖАҒЫ (скрипт браузерде орындалмайды, тек Google-да жұмыс істейді)
+   1) Google Sheets кестесін аш: Кеңейтімдер, содан кейін Apps Script.
+   2) Ішіндегі барлық кодты өшіріп, төмендегі кодты қой (SHEET_ID дайын).
+   3) Ctrl+S басып сақта.
+   4) Deploy, New deployment, Web app. Execute as: Me. Who has access: Anyone.
+   5) Шыққан сілтемені көшір (https://script.google.com/macros/s/.../exec).
+
+ 2-ҚАДАМ. САЙТ ЖАҒЫ
+   Ctrl+F арқылы scriptURL деп іздеп, ВСТАВЬ_СЮДА_WEB_APP_URL орнына
+   көшірген сілтемеңді қой (тырнақшаны өшірме). Файлды сақта.
+
+ Кейін скриптті өзгертсең: Deploy, Manage deployments, карандаш,
+ Version: New version, Deploy. Сонда сілтеме өзгермейді.
+
+~~~~~~~~~~~~~~~~~~~~~~ GOOGLE APPS SCRIPT (Code.gs) ~~~~~~~~~~~~~~~~~~~~~~~
+
+const SHEET_ID = "1hS8-BYI8djhEKS0bwlnkPYU2G4kekcdXxmYaLfXJsWc";
+
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = SpreadsheetApp.openById(SHEET_ID).getSheets()[0];
+
+    const headers = ["Аты-жөні", "Сыныбы", "Күні-Уақыты", "Жалпы балл"];
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
+    const data = JSON.parse(e.postData.contents);
+    const row = [data.name, data.cls, new Date(), data.total];
+
+    // Оқушы бұрын бар болса, жолын жаңартады, болмаса жаңа жол қосады
+    const key = s => String(s).trim().toLowerCase();
+    const last = sheet.getLastRow();
+    let target = -1;
+    if (last > 1) {
+      const vals = sheet.getRange(2, 1, last - 1, 2).getValues();
+      for (let i = 0; i < vals.length; i++) {
+        if (key(vals[i][0]) === key(data.name) && key(vals[i][1]) === key(data.cls)) {
+          target = i + 2;
+          break;
+        }
+      }
+    }
+    if (target > 0) sheet.getRange(target, 1, 1, row.length).setValues([row]);
+    else sheet.appendRow(row);
+
+    return ContentService.createTextOutput("OK");
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Сілтемені браузерде ашып, скрипт жұмыс істейтінін тексеру үшін
+function doGet() {
+  return ContentService.createTextOutput("PyHero скрипті жұмыс істеп тұр ✅");
+}
+
+==========================================================================
+-->
+<html lang="kk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PyHero — Мектеп оқушыларына арналған Python</title>
+<meta name="description" content="10 сабақта нөлден бастап Python үйреніңіз: лекция, мысал, практика және тест.">
+<style>
+:root{
+  --navy:#0b1b3a;--navy-2:#14346a;--blue:#2f6fdf;--blue-d:#2459b8;--yellow:#ffd43b;
+  --ink:#0f172a;--muted:#5b6b82;--line:#e3e8f0;--bg:#f5f7fb;--card:#fff;
+  --ok:#15803d;--ok-bg:#e8f7ee;--bad:#b91c1c;--bad-bg:#fdecec;--tint:#eef3ff;
+  --r:14px;--shadow:0 1px 2px rgba(15,23,42,.06),0 10px 28px rgba(15,23,42,.07);
+  --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+body.lock{overflow:hidden}
+a{color:inherit}
+h1,h2,h3{line-height:1.2;margin:0}
+button{font:inherit}
+:focus-visible{outline:3px solid #8db4ff;outline-offset:2px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+
+/* ---------- Шапка ---------- */
+.top{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.86);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:20px;height:64px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:800;letter-spacing:-.01em;font-size:18px}
+.logo i{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-style:normal;font-size:15px;color:var(--navy);background:linear-gradient(135deg,var(--yellow),#ffb703)}
+.links{display:flex;gap:4px;margin-left:12px}
+.links a{text-decoration:none;color:var(--muted);font-size:14px;font-weight:600;padding:8px 12px;border-radius:8px}
+.links a:hover{background:var(--tint);color:var(--blue-d)}
+.spacer{flex:1}
+.pill{display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-size:13px;font-weight:700;color:var(--navy);background:var(--tint);border:1px solid #d6e2ff;padding:7px 12px;border-radius:999px}
+.pill b{color:var(--blue-d)}
+
+/* ---------- Батырмалар ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1.5px solid transparent;border-radius:10px;padding:11px 20px;font-weight:700;font-size:15px;cursor:pointer;text-decoration:none;transition:transform .12s,box-shadow .12s,background .12s}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.btn-primary{background:var(--blue);color:#fff;box-shadow:0 6px 16px rgba(47,111,223,.28)}
+.btn-primary:hover:not(:disabled){background:var(--blue-d)}
+.btn-yellow{background:var(--yellow);color:var(--navy);box-shadow:0 8px 20px rgba(255,212,59,.28)}
+.btn-yellow:hover{background:#ffdc5c}
+.btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
+.btn-ghost:hover{background:rgba(255,255,255,.1)}
+.btn-line{background:#fff;color:var(--ink);border-color:var(--line)}
+.btn-line:hover:not(:disabled){border-color:#b9c6dd;background:#f8faff}
+.btn-sm{padding:7px 14px;font-size:13px;border-radius:8px}
+
+/* ---------- Басты бет ---------- */
+.hero{background:radial-gradient(900px 420px at 85% -10%,rgba(47,111,223,.55),transparent 60%),linear-gradient(160deg,var(--navy) 0%,var(--navy-2) 100%);color:#fff;padding:72px 0 120px}
+.hero .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
+.tag{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--yellow);background:rgba(255,212,59,.12);border:1px solid rgba(255,212,59,.3);padding:6px 12px;border-radius:999px;margin-bottom:18px}
+.hero h1{font-size:clamp(32px,5vw,50px);letter-spacing:-.025em;font-weight:800}
+.hero h1 em{font-style:normal;color:var(--yellow)}
+.hero p.lead{font-size:18px;color:#c7d5f0;max-width:520px;margin:18px 0 28px}
+.hero .cta{display:flex;flex-wrap:wrap;gap:12px}
+.codewin{background:#0a1226;border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.codebar{display:flex;align-items:center;gap:7px;padding:10px 14px;background:#111c38;border-bottom:1px solid rgba(255,255,255,.06)}
+.codebar i{width:11px;height:11px;border-radius:50%;background:#ff5f57}
+.codebar i:nth-child(2){background:#febc2e}.codebar i:nth-child(3){background:#28c840}
+.codebar span{margin-left:8px;font:12px var(--mono);color:#8da2cc;flex:1}
+.codewin pre{margin:0;padding:16px 18px;font:14px/1.75 var(--mono);color:#dbe6ff;overflow-x:auto}
+.codewin .out{border-top:1px dashed rgba(255,255,255,.12);padding:12px 18px;font:13.5px/1.7 var(--mono);color:#9be9a8;background:#0d1730}
+.c{color:#6f84b0}.s{color:#9be9a8}.f{color:#7cc4ff}
+
+.stats{margin-top:-64px;position:relative;z-index:2}
+.stats .wrap>div{display:grid;grid-template-columns:repeat(4,1fr);background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.stat{padding:22px 24px;border-right:1px solid var(--line)}
+.stat:last-child{border-right:0}
+.stat b{display:block;font-size:28px;letter-spacing:-.02em;color:var(--blue-d)}
+.stat span{font-size:13px;color:var(--muted)}
+
+/* ---------- Бөлімдер ---------- */
+section.sec{padding:76px 0 0}
+.head{margin-bottom:30px;max-width:640px}
+.eyebrow{display:block;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:8px}
+.head h2{font-size:clamp(26px,3.4vw,34px);letter-spacing:-.02em}
+.head p{color:var(--muted);margin:10px 0 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:22px;box-shadow:var(--shadow)}
+.feat .ico{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:var(--tint);margin-bottom:14px}
+.feat h3{font-size:17px;margin-bottom:6px}
+.feat p{margin:0;color:var(--muted);font-size:15px}
+
+/* ---------- Сабақ карточкалары ---------- */
+.overall{display:flex;align-items:center;gap:14px;margin:0 0 22px;color:var(--muted);font-size:14px}
+.bar{flex:1;height:8px;border-radius:99px;background:#e6ebf5;overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--blue),#5aa0ff);transition:width .4s}
+.lcard{display:flex;flex-direction:column;gap:10px;position:relative;transition:transform .15s,box-shadow .15s,border-color .15s}
+.lcard:hover{transform:translateY(-3px);border-color:#c8d6f5}
+.lnum{font:800 13px var(--mono);color:var(--blue-d);background:var(--tint);width:38px;height:28px;border-radius:8px;display:grid;place-items:center}
+.lcard h3{font-size:18px;letter-spacing:-.01em}
+.lcard p{margin:0;color:var(--muted);font-size:14.5px;flex:1}
+.lmeta{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted);margin:6px 0 4px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:#f1f4fa;color:var(--muted)}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.lcard.is-done{border-color:#bfe5cd}
+
+/* ---------- Жетістіктер ---------- */
+.ach{display:grid;grid-template-columns:380px 1fr;gap:22px;align-items:start}
+.profile label{display:block;font-size:13px;font-weight:700;margin:14px 0 6px}
+.profile input{width:100%;padding:11px 13px;border:1.5px solid var(--line);border-radius:10px;font:inherit;background:#fff}
+.profile input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px rgba(47,111,223,.14)}
+.ringrow{display:flex;align-items:center;gap:18px;margin:6px 0 4px}
+.ring{position:relative;width:118px;height:118px;flex:none}
+.ring svg{transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:10}
+.ring .bg{stroke:#e6ebf5}
+.ring .fg{stroke:var(--blue);stroke-linecap:round;stroke-dasharray:326.73;stroke-dashoffset:326.73;transition:stroke-dashoffset .5s}
+.ring div{position:absolute;inset:0;display:grid;place-content:center;text-align:center;line-height:1.1}
+.ring b{font-size:28px;letter-spacing:-.02em}
+.ring small{color:var(--muted);font-size:12px}
+.kv{font-size:14px;color:var(--muted)}
+.kv b{color:var(--ink)}
+.badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:12px}
+.bd{text-align:center;padding:16px 8px;border:1px solid var(--line);border-radius:12px;background:#fafbff}
+.bd span{display:block;font-size:34px;filter:grayscale(1);opacity:.28;transition:.3s}
+.bd small{font-size:12px;color:var(--muted);font-weight:600}
+.bd.half span{filter:grayscale(.5);opacity:.6}
+.bd.half small{color:var(--blue-d)}
+.bd.on{background:#fffbe9;border-color:#f6e08a}
+.bd.on span{filter:none;opacity:1}
+#sendInfo{margin:12px 0 0;font-size:14px;min-height:22px}
+.t-ok{color:var(--ok);font-weight:700}.t-bad{color:var(--bad);font-weight:700}
+
+/* ---------- Жоба / байланыс ---------- */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+.split p{color:var(--muted);margin:0 0 14px}
+.codewin.light pre{font-size:13.5px}
+.contact input{width:100%;padding:11px 13px;border:1.5px solid var(--line);border-radius:10px;font:inherit;margin-bottom:12px}
+.contact input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px rgba(47,111,223,.14)}
+.teacher{display:flex;gap:14px;align-items:center}
+.teacher .av{width:48px;height:48px;border-radius:50%;background:var(--tint);display:grid;place-items:center;font-size:22px}
+footer{margin-top:84px;background:var(--navy);color:#b9c8e6;padding:36px 0;font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:12px 32px;justify-content:space-between;align-items:center}
+footer b{color:#fff}
+
+/* ---------- Сабақ терезесі ---------- */
+#window{display:none;position:fixed;inset:0;z-index:50;background:rgba(8,16,36,.62);overflow:auto;padding:24px 14px}
+#window.open{display:block}
+.box{background:#fff;max-width:820px;margin:0 auto;border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.mhead{position:sticky;top:0;z-index:2;display:flex;gap:16px;align-items:flex-start;justify-content:space-between;padding:20px 26px;background:rgba(255,255,255,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);border-radius:18px 18px 0 0}
+.mhead h2{font-size:24px;letter-spacing:-.015em}
+.x{border:0;background:#f1f4fa;width:38px;height:38px;border-radius:10px;font-size:16px;cursor:pointer;color:var(--muted)}
+.x:hover{background:#e3e9f6}
+.mbody{padding:8px 26px 8px}
+.msec{padding:22px 0;border-bottom:1px solid var(--line)}
+.msec:last-child{border-bottom:0}
+.msec>h3{display:flex;align-items:center;gap:10px;font-size:18px;margin-bottom:12px}
+.msec>h3 span{width:32px;height:32px;border-radius:9px;background:var(--tint);display:grid;place-items:center;font-size:16px}
+.prose{font-size:15.5px}
+.prose p{margin:.6em 0}
+.prose ul,.prose ol{padding-left:22px;margin:.6em 0}
+.prose li{margin:.35em 0}
+code{font-family:var(--mono);font-size:.88em;background:#eef2ff;color:#3730a3;padding:2px 6px;border-radius:6px}
+.codewin.ex{box-shadow:none;border:0}
+.copy{border:1px solid rgba(255,255,255,.2);background:transparent;color:#b9c8e6;border-radius:7px;font-size:12px;padding:3px 10px;cursor:pointer}
+.copy:hover{background:rgba(255,255,255,.1)}
+.task{background:#f8faff;border:1px solid #dbe5fb;border-radius:12px;padding:16px;margin-bottom:12px}
+.task p{margin:0 0 8px}
+.need{font-size:13px;color:var(--muted)}
+textarea.editor{width:100%;min-height:150px;resize:vertical;border:1.5px solid #1d2b4d;border-radius:12px;background:#0a1226;color:#e6edff;font:14px/1.7 var(--mono);padding:14px;tab-size:4}
+textarea.editor:focus{outline:none;box-shadow:0 0 0 4px rgba(47,111,223,.25)}
+#codeResult{margin:10px 0 0;font-size:14.5px;min-height:22px}
+.q{border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+.q p.qt{margin:0 0 10px;font-weight:700}
+.opt{display:block;width:100%;text-align:left;margin:6px 0;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;font-size:15px;transition:.12s}
+.opt:hover:not(:disabled){border-color:#9db8f2;background:#f8faff}
+.opt.ok{border-color:#58b97b;background:var(--ok-bg);color:var(--ok);font-weight:700}
+.opt.no{border-color:#e08a8a;background:var(--bad-bg);color:var(--bad)}
+.opt:disabled{cursor:default}
+.res{margin:10px 0 0;font-size:14.5px}
+.mfoot{display:flex;justify-content:space-between;gap:10px;padding:18px 26px;border-top:1px solid var(--line);background:#fafbff;border-radius:0 0 18px 18px}
+
+/* ---------- Беттер ---------- */
+.page[hidden]{display:none}
+.page{animation:pg .28s ease}
+@keyframes pg{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.links a.on{background:var(--tint);color:var(--blue-d)}
+.go{text-decoration:none;color:inherit;transition:transform .15s,border-color .15s}
+.go:hover{transform:translateY(-3px);border-color:#c8d6f5}
+
+/* ---------- Көмекші ZanYer ---------- */
+#fab{position:fixed;right:18px;bottom:18px;z-index:60;width:68px;height:68px;border-radius:50%;border:3px solid #fff;background:linear-gradient(160deg,var(--navy-2),var(--navy));box-shadow:0 10px 28px rgba(11,27,58,.4);cursor:pointer;padding:0;display:grid;place-items:center}
+#fab:hover{transform:scale(1.05)}
+#fab svg{width:46px;height:50px}
+#fabDot{position:absolute;top:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#ef4444;border:2px solid #fff}
+#chat{position:fixed;right:18px;bottom:98px;z-index:60;width:min(380px,calc(100vw - 28px));height:min(560px,calc(100vh - 130px));background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(15,23,42,.3);display:flex;flex-direction:column;overflow:hidden}
+#chat[hidden]{display:none}
+.chead{display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(160deg,var(--navy-2),var(--navy));color:#fff}
+.chead b{display:block;font-size:15px}
+.chead small{color:#a9bde6}
+.chead button{margin-left:auto;border:0;background:rgba(255,255,255,.12);color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer}
+#chatLog{flex:1;overflow:auto;padding:14px;background:#f7f9fd;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:88%;padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.5}
+.msg.bot{background:#fff;border:1px solid var(--line);border-top-left-radius:4px;align-self:flex-start}
+.msg.me{background:var(--blue);color:#fff;border-top-right-radius:4px;align-self:flex-end}
+.cfoot{padding:12px;border-top:1px solid var(--line);background:#fff}
+.cfoot input{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:14px}
+.cfoot input:focus{border-color:var(--blue);outline:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;max-height:104px;overflow:auto}
+.chips small{width:100%;color:var(--muted)}
+.chips button{border:1px solid #d6e2ff;background:var(--tint);color:var(--blue-d);border-radius:999px;font-size:12px;font-weight:600;padding:5px 10px;cursor:pointer;text-align:left}
+.chips button:hover{background:#dfe9ff}
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:var(--navy);color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:80;box-shadow:0 12px 30px rgba(0,0,0,.3)}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media(max-width:900px){
+  .hero .wrap,.ach,.split{grid-template-columns:1fr}
+  .hero{padding:48px 0 110px}
+  .stats .wrap>div{grid-template-columns:1fr 1fr}
+  .stat:nth-child(2){border-right:0}
+  .stat:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .top .wrap{height:auto;flex-wrap:wrap;padding-top:8px;padding-bottom:4px}
+  .links{order:3;width:100%;margin:0;overflow-x:auto;white-space:nowrap}
+}
+@media(max-width:560px){
+  .mhead,.mfoot{padding-left:16px;padding-right:16px}
+  .mbody{padding:4px 16px}
+  #chat{right:7px;bottom:92px}
+  .pill span{display:none}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<!-- ===== Шапка ===== -->
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="#top"><i>Py</i>PyHero</a>
+    <nav class="links" aria-label="Негізгі мәзір">
+      <a href="#top">Басты</a><a href="#about">Курс туралы</a><a href="#lessons">Сабақтар</a>
+      <a href="#ach">Жетістіктер</a><a href="#project">Жоба</a>
+    </nav>
+    <span class="spacer"></span>
+    <a class="pill" href="#ach"><span>Балл:</span> <b id="hdrScore">0</b>/<span id="maxScore">20</span></a>
+  </div>
+</header>
+
+<!-- ===== Басты бет ===== -->
+<main>
+<div class="page" id="top">
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <span class="tag">Python · 10 сабақ · Тегін</span>
+      <h1>Мектеп оқушыларына арналған <em>Python</em></h1>
+      <p class="lead">Python үйрен — өз бағдарламаңды жаса! Лекция, мысал, практика және тест бір жерде.</p>
+      <div class="cta">
+        <a class="btn btn-yellow" href="#lessons">Курсты бастау →</a>
+        <a class="btn btn-ghost" href="#about">Курс туралы</a>
+      </div>
+    </div>
+    <div class="codewin" aria-hidden="true">
+      <div class="codebar"><i></i><i></i><i></i><span>main.py</span></div>
+<pre><span class="c"># Алғашқы бағдарлама</span>
+аты = <span class="f">input</span>(<span class="s">"Атың кім? "</span>)
+<span class="f">print</span>(<span class="s">f"Сәлем, {аты}!"</span>)</pre>
+      <div class="out">Атың кім? Заңғар<br>Сәлем, Заңғар!</div>
+    </div>
+  </div>
+</section>
+
+<div class="stats">
+  <div class="wrap"><div>
+    <div class="stat"><b>10</b><span>сабақ</span></div>
+    <div class="stat"><b>20</b><span>тест сұрағы</span></div>
+    <div class="stat"><b id="statMax">20</b><span>максимал балл</span></div>
+    <div class="stat"><b>Тегін</b><span>барлық компьютерде жұмыс істейді</span></div>
+  </div></div>
+</div>
+
+<section class="sec"><div class="wrap">
+  <div class="head"><span class="eyebrow">Қайдан бастаймын?</span><h2>Үш қадам</h2></div>
+  <div class="grid">
+    <a class="card feat go" href="#about"><div class="ico">🐍</div><h3>1. Курспен танысу</h3><p>Python деген не және неге керек екенін біл.</p></a>
+    <a class="card feat go" href="#lessons"><div class="ico">📚</div><h3>2. Сабақтарды өту</h3><p>10 сабақ: лекция, мысал, тапсырма және тест.</p></a>
+    <a class="card feat go" href="#project"><div class="ico">🚀</div><h3>3. Жоба жасау</h3><p>Алған білімді қолданып, өз бағдарламаңды жаз.</p></a>
+  </div>
+</div></section>
+</div>
+
+<!-- ===== Курс туралы ===== -->
+<section class="page sec" id="about" hidden>
+  <div class="wrap">
+    <div class="head"><span class="eyebrow">Курс туралы</span><h2>Python — бағдарламалауды бастаудың ең жеңіл жолы</h2></div>
+    <div class="grid">
+      <article class="card feat"><div class="ico">🐍</div><h3>Python деген не?</h3><p>Қарапайым әрі қуатты бағдарламалау тілі. Сайт, ойын, жасанды интеллект жасауға болады.</p></article>
+      <article class="card feat"><div class="ico">✨</div><h3>Ерекшелігі</h3><p>Оқуға оңай, код қысқа, тегін, барлық компьютерде жұмыс істейді.</p></article>
+      <article class="card feat"><div class="ico">💪</div><h3>Пайдасы</h3><p>Логикалық ойлауды дамытады, болашақ мамандыққа жол ашады.</p></article>
+      <article class="card feat"><div class="ico">🎯</div><h3>Мақсаты</h3><p>10 сабақта нөлден бастап өз бағдарламаңды жазу.</p></article>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Сабақтар ===== -->
+<section class="page sec" id="lessons" hidden>
+  <div class="wrap">
+    <div class="head"><span class="eyebrow">Оқу жоспары</span><h2>10 сабақ</h2></div>
+    <div class="overall"><span>Жалпы прогресс</span><div class="bar"><i id="overallBar"></i></div><b id="overallTxt">0%</b></div>
+    <div class="grid" id="lessonList"></div>
+  </div>
+</section>
+
+<!-- ===== Жетістіктер ===== -->
+<section class="page sec" id="ach" hidden>
+  <div class="wrap">
+    <div class="head"><span class="eyebrow">Прогресс</span><h2>Жетістіктер</h2></div>
+    <div class="ach">
+      <div class="card profile">
+        <h3 style="font-size:18px">👤 Оқушы</h3>
+        <div class="ringrow">
+          <div class="ring">
+            <svg viewBox="0 0 118 118" width="118" height="118"><circle class="bg" cx="59" cy="59" r="52"/><circle class="fg" id="ringFill" cx="59" cy="59" r="52"/></svg>
+            <div><b id="points">0</b><small>/ <span class="maxTxt">20</span> балл</small></div>
+          </div>
+          <div class="kv">Өткен сабақ:<br><b id="doneCount">0</b>/10</div>
+        </div>
+        <label for="stName">Аты-жөні</label>
+        <input id="stName" placeholder="Мысалы: Асан Асанов" autocomplete="name">
+        <label for="stClass">Сынып</label>
+        <input id="stClass" placeholder="Мысалы: 7А" autocomplete="off">
+        <p class="kv" style="margin:14px 0 12px">Аты-жөніңді және сыныбыңды жазып, батырманы бас. Нәтиже Google Sheets кестесіне түседі.</p>
+        <button class="btn btn-primary" id="sendBtn" style="width:100%" onclick="saveResults()">☁ Нәтижені мұғалімге жіберу</button>
+        <p id="sendInfo" role="status"></p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:18px;margin-bottom:6px">🏅 Бейдждер</h3>
+        <p class="kv" style="margin:0 0 16px">Бейдж алу үшін сабақтағы практикалық тапсырманы орында: код жазып, «Тексеру» батырмасын бас. Тапсырма — 1 балл және бейдж, әр дұрыс тест жауабы — 0.5 балл.</p>
+        <div class="badges" id="badges"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Қорытынды жоба ===== -->
+<section class="page sec" id="project" hidden>
+  <div class="wrap">
+    <div class="head"><span class="eyebrow">Практика</span><h2>Қорытынды жоба</h2></div>
+    <div class="split">
+      <div>
+        <p>10 сабақтағы білімді қолданып, өз бағдарламаңды жаса. Мысал: «Санды тап» ойыны.</p>
+        <p>Жақсы жобада кемінде <code>input()</code>, <code>if</code>, цикл және функция болсын.</p>
+        <a class="btn btn-primary" href="#lessons">Сабақтарға өту</a>
+      </div>
+      <div class="codewin light">
+        <div class="codebar"><i></i><i></i><i></i><span>sanды_тап.py</span></div>
+<pre><span class="f">import</span> random
+сан = random.randint(1, 10)
+жауап = <span class="f">int</span>(<span class="f">input</span>(<span class="s">"Санды тап (1-10): "</span>))
+<span class="f">if</span> жауап == сан:
+    <span class="f">print</span>(<span class="s">"Жарайсың!"</span>)
+<span class="f">else</span>:
+    <span class="f">print</span>(<span class="s">"Қате! Сан:"</span>, сан)</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><b>PyHero</b> · Мектеп оқушыларына арналған Python</div>
+    <div><b>Орындаған:</b> Еркінбек Ернар, Бауржанұлы Заңғар</div>
+    <div>Мұғалім: <a href="mailto:teacher@school.kz" style="color:#fff">teacher@school.kz</a> · © PyHero</div>
+  </div>
+</footer>
+
+<!-- ===== Сабақ терезесі ===== -->
+<div id="window" role="dialog" aria-modal="true" aria-label="Сабақ"><div class="box" id="lessonBox"></div></div>
+
+<!-- ===== Көмекші ZanYer ===== -->
+<button id="fab" onclick="toggleChat()" aria-label="ZanYer көмекшісін ашу">
+  <svg viewBox="0 0 100 110" aria-hidden="true">
+    <path d="M25 50 Q5 85 15 105 L50 80Z" fill="#ff4d8d" stroke="#0b1b3a" stroke-width="3"/>
+    <rect x="30" y="52" width="40" height="45" rx="10" fill="#19c3b1" stroke="#0b1b3a" stroke-width="3"/>
+    <text x="50" y="80" text-anchor="middle" font-size="16" font-weight="900" fill="#ffd43b" stroke="#0b1b3a">Py</text>
+    <circle cx="50" cy="32" r="24" fill="#ffcf9f" stroke="#0b1b3a" stroke-width="3"/>
+    <path d="M27 28 Q50 0 73 28 Q50 15 27 28Z" fill="#3a2a1a"/>
+    <rect x="32" y="28" width="36" height="9" rx="4" fill="#ff4d8d" stroke="#0b1b3a" stroke-width="2"/>
+    <path d="M40 44 Q50 52 60 44" stroke="#0b1b3a" stroke-width="3" fill="none"/>
+  </svg>
+  <span id="fabDot" hidden></span>
+</button>
+<section id="chat" hidden aria-label="ZanYer көмекшісі">
+  <div class="chead"><div style="font-size:26px">🦸</div><div><b>ZanYer</b><small>Python көмекшісі</small></div><button onclick="toggleChat(false)" aria-label="Жабу">✕</button></div>
+  <div id="chatLog" aria-live="polite"></div>
+  <div class="cfoot">
+    <input id="askInput" placeholder="Сұрағыңды жаз…" oninput="suggest()" onkeydown="if(event.key=='Enter')suggest(true)">
+    <div class="chips" id="suggest"></div>
+    <div class="chips" id="questions"></div>
+  </div>
+</section>
+<div id="toast" role="status"></div>
+
+<script>
+// ============================================================
+//  БАПТАУ: Google Apps Script «Web app URL» сілтемесін осы жерге қой.
+//  Тырнақшаны (") және соңындағы ; белгісін өшіріп алма.
+// ============================================================
+const scriptURL = "https://script.google.com/macros/s/AKfycbznVjTi42iY5asatsWm2s9-CORAaQTubvPF41P1Cx_F4-xlZ_Mq33PP5f7W3bdFDL0T/exec";
+
+const lessons = [
+ {title:"Python-ға кіріспе", desc:"print() командасы",
+  tip:"print() экранға мәтін шығарады. Мәтін тырнақшада жазылады.",
+  lecture:"<p><b>Бағдарлама дегеніміз не?</b> Бағдарлама — компьютерге берілетін нұсқаулар тізбегі, асхана рецептіне ұқсайды. Компьютер өздігінен ойламайды: біз не жазсақ, тек соны орындайды.</p><p><b>Python деген не?</b> Python — 1991 жылы Гвидо ван Россум жасаған бағдарламалау тілі. Оның коды ағылшын тіліне ұқсас, сондықтан оқуға жеңіл. Python-да сайт, ойын, бот және жасанды интеллект жасауға болады.</p><p><b>Негізгі ережелер:</b></p><ul><li>Python кодты жоғарыдан төмен қарай, әр жолды бір-бірден орындайды.</li><li><code>print()</code> командасы жақша ішіндегі мәтінді экранға шығарады.</li><li>Мәтін әрқашан тырнақшада жазылады: <code>\"Сәлем\"</code> не <code>'Сәлем'</code>.</li><li><code>#</code> белгісінен кейінгі жазу — түсініктеме. Компьютер оны оқымайды, ол адамға арналған.</li></ul><p><b>Жиі кететін қателер:</b> тырнақшаны жабуды ұмыту, <code>print</code> сөзін үлкен әріппен жазу (<code>Print</code> — қате), жақшаны жаппау.</p>",
+  explain:"<p>Мысалдағы кодты жолма-жол талдайық:</p><ol><li><code># Алғашқы бағдарлама</code> — түсініктеме, орындалмайды.</li><li><code>print(\"Сәлем, әлем!\")</code> — экранға <i>Сәлем, әлем!</i> деп шығарады.</li><li>Екінші <code>print</code> келесі жолға шығарады, себебі әр print жаңа жолдан басталады.</li></ol><p>Нәтиже: екі жол мәтін.</p>",
+  example:'# Алғашқы бағдарлама\nprint("Сәлем, әлем!")\nprint("Мен Python үйреніп жатырмын")',
+  task:"Экранға өз атыңды шығаратын print() жаз.", need:["print"],
+  tests:[
+   {q:"Python-да экранға мәтін шығаратын команда қайсы?", o:["print()","input()","show()"], a:0, why:"print() — экранға шығару командасы."},
+   {q:"# белгісінен кейінгі жол не болады?", o:["Орындалады","Түсініктеме, орындалмайды","Қате шығарады"], a:1, why:"# кейінгі жазу — түсініктеме, компьютер оны өткізіп жібереді."}]},
+
+ {title:"Айнымалылар және типтер", desc:"Деректерді сақтау",
+  tip:"Айнымалы — деректі сақтайтын қорап. Типтер: int, float, str, bool.",
+  lecture:"<p><b>Айнымалы</b> — деректі сақтайтын «қорап», оның аты болады. Мысалы, <code>жас = 12</code> дегенде «жас» қорабына 12 саны салынды. <code>=</code> белгісі «тең» емес, «мән беру» дегенді білдіреді.</p><p><b>Айнымалы атауының ережесі:</b></p><ul><li>әріптен немесе <code>_</code> белгісінен басталады (<code>2a</code> — қате);</li><li>бос орын болмайды (<code>my_age</code> дұрыс, <code>my age</code> қате);</li><li>әріп өлшемі маңызды: <code>Жас</code> және <code>жас</code> — екі басқа айнымалы;</li><li>атауы мағыналы болсын: <code>a</code> емес, <code>жас</code>.</li></ul><p><b>Деректер типтері:</b></p><ul><li><code>int</code> — бүтін сан: <code>5</code>, <code>-3</code>;</li><li><code>float</code> — бөлшек сан: <code>3.14</code> (нүктемен жазылады, үтірмен емес!);</li><li><code>str</code> — мәтін: <code>\"сәлем\"</code>;</li><li><code>bool</code> — логикалық мән: <code>True</code> немесе <code>False</code>.</li></ul><p>Айнымалының типін <code>type(x)</code> көрсетеді. Пернетақтадан дерек алу үшін <code>input()</code> қолданылады. Ол әрқашан мәтін қайтарады, сан керек болса <code>int(input())</code> деп жазамыз.</p>",
+  explain:"<ol><li><code>аты = \"Али\"</code> — str типті айнымалы жасалды.</li><li><code>жас = 12</code> — int типті.</li><li><code>бойы = 1.55</code> — float типті.</li><li><code>print(аты, жас, type(бойы))</code> — үшеуін бір жолға шығарады, үтір орнына бос орын қояды. <code>type(бойы)</code> нәтижесі float болады.</li></ol>",
+  example:'аты = "Али"\nжас = 12\nбойы = 1.55\nprint(аты, жас, type(бойы))',
+  task:"Аты және жасы айнымалыларын жасап, print арқылы шығар.", need:["=","print"],
+  tests:[
+   {q:"жас = 12 жолындағы = белгісі не істейді?", o:["Салыстырады","Айнымалыға мән береді","Қосады"], a:1, why:"= белгісі айнымалыға мән береді. Салыстыру үшін == қолданылады."},
+   {q:"'5' + '3' нәтижесі қандай?", o:["8","53","Қате"], a:1, why:"Тырнақшадағы — мәтін. Мәтіндер қосылмайды, жалғасады: 53."}]},
+
+ {title:"Амалдар", desc:"Арифметика және логика",
+  tip:"// — бүтін бөлу, % — қалдық, ** — дәреже. and, or, not — логикалық амалдар.",
+  lecture:"<p>Python-ды калькулятор ретінде қолдануға болады.</p><ul><li><code>+</code> қосу, <code>-</code> азайту, <code>*</code> көбейту, <code>/</code> бөлу (нәтиже әрқашан бөлшек);</li><li><code>//</code> — бүтін бөлу: <code>17 // 5 = 3</code>;</li><li><code>%</code> — қалдық: <code>17 % 5 = 2</code>. Жұп-тақты тексеруге керек: <code>n % 2 == 0</code> болса, сан жұп;</li><li><code>**</code> — дәреже: <code>2 ** 5 = 32</code>.</li></ul><p><b>Амалдар реті</b> математикадағыдай: алдымен жақша, сосын дәреже, сосын көбейту/бөлу, ең соңында қосу/азайту. <code>2 + 3 * 4 = 14</code>, ал <code>(2 + 3) * 4 = 20</code>.</p><p><b>Салыстыру амалдары</b> нәтижесінде <code>True</code> немесе <code>False</code> шығады: <code>==</code> тең, <code>!=</code> тең емес, <code>&gt;</code>, <code>&lt;</code>, <code>&gt;=</code>, <code>&lt;=</code>.</p><p><b>Логикалық амалдар:</b></p><ul><li><code>and</code> («және») — екі шарт та шын болса ғана <code>True</code>;</li><li><code>or</code> («немесе») — кемінде біреуі шын болса <code>True</code>;</li><li><code>not</code> («емес») — мәнді кері айналдырады.</li></ul>",
+  explain:"<ol><li><code>2 + 3 * 4</code> — алдымен 3 * 4 = 12, сосын 2 + 12 = 14.</li><li><code>17 // 5</code> = 3, <code>17 % 5</code> = 2 (себебі 17 = 5·3 + 2).</li><li><code>5 &gt; 3 and 2 &lt; 1</code> — біріншісі True, екіншісі False. and үшін екеуі де шын болуы керек, сондықтан нәтиже False.</li></ol>",
+  example:'print(2 + 3 * 4)\nprint(17 // 5, 17 % 5)\nprint(5 > 3 and 2 < 1)',
+  task:"2 санының 5-ші дәрежесін шығар.", need:["**","print"],
+  tests:[
+   {q:"7 // 2 неге тең?", o:["3.5","3","1"], a:1, why:"// — бүтін бөлу. 7-нің ішінде 2 үш рет бар, нәтиже 3."},
+   {q:"5 > 3 and 2 > 9 нәтижесі қандай?", o:["True","False","Қате"], a:1, why:"2 > 9 жалған. and үшін екі шарт та шын болуы керек, сондықтан False."}]},
+
+ {title:"Шартты операторлар", desc:"if, elif, else",
+  tip:"Шарттан кейін қос нүкте (:) қойылады, код 4 бос орынмен ішке жылжиды.",
+  lecture:"<p>Бағдарлама шешім қабылдай алады. Ол үшін <b>шартты оператор</b> қолданылады.</p><ul><li><code>if шарт:</code> — шарт шын болса, төмендегі блок орындалады;</li><li><code>elif шарт:</code> — «әйтпесе егер», алдыңғы шарт жалған болса тексеріледі;</li><li><code>else:</code> — ешбір шарт орындалмаса, осы блок орындалады.</li></ul><p><b>Өте маңызды ереже:</b> шарттан кейін қос нүкте <code>:</code> қойылады, ал блоктың ішіндегі жолдар <b>4 бос орынмен</b> ішке жылжытылады (отступ). Python блокты осы арқылы таниды.</p><p>Бір if-elif-else тізбегінде тек бір блок орындалады: шарттар жоғарыдан төмен қарай тексеріліп, бірінші шын шартта тоқтайды.</p><p>Шарттарды <code>and</code>, <code>or</code> арқылы біріктіруге болады: <code>if жас &gt;= 7 and жас &lt;= 17:</code>.</p><p><b>Жиі қате:</b> теңдікті тексергенде <code>=</code> емес, <code>==</code> жазу керек.</p>",
+  explain:"<ol><li><code>балл = 85</code> — айнымалы.</li><li><code>if балл &gt;= 90</code> — 85 ≥ 90 жалған, өтіп кетеді.</li><li><code>elif балл &gt;= 70</code> — шын, «Жақсы» шығады.</li><li><code>else</code> орындалмайды, себебі шарт табылып қойды.</li></ol>",
+  example:'балл = 85\nif балл >= 90:\n    print("Өте жақсы")\nelif балл >= 70:\n    print("Жақсы")\nelse:\n    print("Көбірек жаттық")',
+  task:"Санның оң немесе теріс екенін тексеретін if-else жаз.", need:["if","else"],
+  tests:[
+   {q:"Ешбір шарт орындалмағанда қай блок жұмыс істейді?", o:["elif","else","if"], a:1, why:"else — «басқа жағдайда» блогы."},
+   {q:"x = 5 болса, if x > 3: блогы орындала ма?", o:["Иә, орындалады","Жоқ, орындалмайды","Қате шығады"], a:0, why:"5 > 3 шын, сондықтан if блогы орындалады."}]},
+
+ {title:"Циклдер", desc:"for және while",
+  tip:"range(5) — 0,1,2,3,4. while шарт шын болғанша қайталайды.",
+  lecture:"<p><b>Цикл</b> кодты бірнеше рет қайталауға мүмкіндік береді. 100 рет print жазудың орнына, 2 жол жазамыз.</p><p><b>for циклі</b> — қайталану саны белгілі болғанда:</p><ul><li><code>range(5)</code> → 0, 1, 2, 3, 4 (5 кірмейді!);</li><li><code>range(1, 6)</code> → 1, 2, 3, 4, 5 (соңғы сан кірмейді);</li><li><code>range(0, 10, 2)</code> → 0, 2, 4, 6, 8 (үшінші сан — қадам).</li></ul><p><b>while циклі</b> — шарт шын болғанша қайталайды. Ішінде шартты өзгерту керек, әйтпесе цикл шексіз болады: <code>n -= 1</code> (яғни n = n - 1).</p><p><b>Басқару командалары:</b> <code>break</code> — циклді толық тоқтатады, <code>continue</code> — ағымдағы қадамды өткізіп, келесіге өтеді.</p><p>Циклдің ішкі жолдары да 4 бос орынмен ішке жылжытылады.</p>",
+  explain:"<ol><li><code>for i in range(1, 6)</code> — i мәні 1-ден 5-ке дейін өзгереді, әр қадамда <code>print(i)</code> орындалады: 1 2 3 4 5.</li><li><code>n = 3</code>, <code>while n &gt; 0</code> — 3 &gt; 0 шын, 3 шығады, n = 2 болады; сосын 2, 1 шығады; n = 0 болғанда шарт жалған, цикл тоқтайды.</li></ol>",
+  example:'for i in range(1, 6):\n    print(i)\nn = 3\nwhile n > 0:\n    print(n)\n    n -= 1',
+  task:"for циклімен 1-ден 10-ға дейінгі сандарды шығар.", need:["for","range"],
+  tests:[
+   {q:"range(2, 5) қандай сандар береді?", o:["2, 3, 4, 5","2, 3, 4","3, 4, 5"], a:1, why:"Басы кіреді, соңы кірмейді: 2, 3, 4."},
+   {q:"while циклі қашан тоқтайды?", o:["Шарт жалған болғанда","Әрқашан 10 рет қайталанғаннан кейін","Шарт шын болғанда"], a:0, why:"while шарт шын болғанша қайталайды, жалған болса тоқтайды."}]},
+
+ {title:"Тізімдер", desc:"List",
+  tip:"Тізім: [1, 2, 3]. Индекс 0-ден басталады. append() соңына қосады.",
+  lecture:"<p><b>Тізім (list)</b> — көп мәнді бір айнымалыда сақтайды. Төртбұрышты жақшамен жазылады: <code>жемістер = ['алма', 'банан', 'шие']</code>.</p><ul><li><b>Индекс</b> 0-ден басталады: <code>жемістер[0]</code> — 'алма', <code>жемістер[2]</code> — 'шие'. <code>жемістер[-1]</code> — соңғы элемент.</li><li><code>append(x)</code> — соңына қосады;</li><li><code>remove(x)</code> — элементті өшіреді;</li><li><code>len(a)</code> — элемент санын береді;</li><li><code>sort()</code> — ретке келтіреді;</li><li><code>x in a</code> — элемент тізімде бар ма (True/False).</li></ul><p>Тізімді <code>for</code> арқылы толық аралауға болады: <code>for х in жемістер:</code> — әр қадамда келесі элемент <code>х</code> айнымалысына түседі.</p><p>Тізімде сандар да, мәтін де болады, тіпті аралас та.</p>",
+  explain:"<ol><li><code>ж = [\"алма\", \"банан\"]</code> — 2 элементті тізім.</li><li><code>ж.append(\"шие\")</code> — енді 3 элемент.</li><li><code>len(ж)</code> = 3, <code>ж[0]</code> = алма.</li><li><code>for х in ж</code> — әр жемісті жеке жолға шығарады.</li></ol>",
+  example:'ж = ["алма", "банан"]\nж.append("шие")\nprint(len(ж), ж[0])\nfor х in ж:\n    print(х)',
+  task:"3 санды тізім жасап, append() арқылы тағы бір сан қосып, шығар.", need:["[","append"],
+  tests:[
+   {q:"a = [10, 20, 30] болса, a[1] неге тең?", o:["10","20","30"], a:1, why:"Индекс 0-ден басталады: a[0]=10, a[1]=20."},
+   {q:"len([1, 2, 3, 4]) неге тең?", o:["3","4","5"], a:1, why:"len() элемент санын береді: 4."}]},
+
+ {title:"Жолдар", desc:"Мәтінмен жұмыс",
+  tip:"upper() — үлкен әріп, lower() — кіші, len() — ұзындық, f-жол — мәтінге айнымалы салу.",
+  lecture:"<p><b>Жол (str)</b> — символдар тізбегі. Тізім сияқты индекс бойынша әріптерге қол жеткізуге болады: <code>с = 'python'</code> болса, <code>с[0]</code> — 'p', <code>с[-1]</code> — 'n'.</p><ul><li><code>+</code> — жолдарды жалғайды: <code>'Сәлем, ' + 'Али'</code>;</li><li><code>*</code> — қайталайды: <code>'ха' * 3</code> → 'хахаха';</li><li><code>len(с)</code> — символ саны;</li><li><code>upper()</code> / <code>lower()</code> — үлкен / кіші әріпке айналдырады;</li><li><code>replace('а', 'о')</code> — ауыстырады;</li><li><code>split(',')</code> — жолды тізімге бөледі.</li></ul><p><b>f-жол</b> — айнымалыны мәтінге ыңғайлы салу: <code>f'Сәлем, {аты}!'</code>. Тырнақша алдына <code>f</code> әрпі қойылады, айнымалы фигуралы жақшада жазылады.</p><p>Есте сақта: жолдар өзгермейді — <code>upper()</code> жаңа жол қайтарады, ескісін өзгертпейді.</p>",
+  explain:"<ol><li><code>с = \"python\"</code> — жол жасалды.</li><li><code>с.upper()</code> — PYTHON, <code>len(с)</code> — 6.</li><li><code>f\"Сәлем, {аты}!\"</code> — {аты} орнына Али түседі: Сәлем, Али!</li></ol>",
+  example:'с = "python"\nprint(с.upper(), len(с))\nаты = "Али"\nprint(f"Сәлем, {аты}!")',
+  task:"Сөзді upper() арқылы үлкен әріпке айналдырып шығар.", need:["upper","print"],
+  tests:[
+   {q:"'Python'[0] нәтижесі қандай?", o:["P","y","n"], a:0, why:"Индекс 0 — бірінші әріп: P."},
+   {q:"'a,b,c'.split(',') нәтижесі қандай?", o:["Тізім: ['a', 'b', 'c']","Жол: 'abc'","Сан: 3"], a:0, why:"split() жолды үтір бойынша бөліп, тізім қайтарады."}]},
+
+ {title:"Функциялар", desc:"def және return",
+  tip:"def функцияны жасайды, return нәтижені қайтарады. Функцияны шақыру керек!",
+  lecture:"<p><b>Функция</b> — атауы бар код блогы. Бір рет жазып, қажет болғанда қайта-қайта қолданамыз, кодты қайталамаймыз.</p><ul><li><code>def</code> — функцияны жасайды: <code>def сәлем():</code>;</li><li><b>параметр</b> — функцияға беретін дерек: <code>def квадрат(x):</code>;</li><li><code>return</code> — нәтижені функциядан қайтарады;</li><li>функцияны <b>шақыру</b> керек: <code>квадрат(5)</code>.</li></ul><p><b>Маңызды:</b> <code>def</code> тек функцияны жасайды, орындамайды! Жақшамен шақырғанда ғана жұмыс істейді.</p><p><b>print пен return айырмасы:</b> <code>print</code> нәтижені экранға көрсетеді ғана; <code>return</code> нәтижені қайтарады, оны айнымалыға салып, әрі қарай қолдануға болады: <code>нәтиже = квадрат(5)</code>.</p><p>Функцияның ішіндегі жолдар да 4 бос орынмен жылжытылады. Бірнеше параметр болса, үтірмен бөлінеді: <code>def қосу(a, b):</code>.</p>",
+  explain:"<ol><li><code>def квадрат(x):</code> — x параметрі бар функция.</li><li><code>return x * x</code> — x-ті өзіне көбейтіп қайтарады.</li><li><code>квадрат(5)</code> — x = 5, нәтиже 25. <code>print</code> оны экранға шығарады.</li></ol>",
+  example:'def квадрат(x):\n    return x * x\nprint(квадрат(5))',
+  task:"Екі санды қосып қайтаратын функция жазып, шақыр.", need:["def","return"],
+  tests:[
+   {q:"Функцияны орындау үшін не істеу керек?", o:["Тек def жазу жеткілікті","Оны шақыру: аты()","print жазу"], a:1, why:"def тек функцияны жасайды. Орындау үшін оны жақшамен шақыру керек."},
+   {q:"def f(x): return x * 2 болса, f(4) неге тең?", o:["6","8","4"], a:1, why:"x = 4, нәтиже 4 * 2 = 8."}]},
+
+ {title:"Есептер және алгоритм", desc:"Қадамдық жоспар",
+  tip:"Алгоритм — қадамдық жоспар. Қосынды: қ = 0, содан кейін қ += i.",
+  lecture:"<p><b>Алгоритм</b> — есепті шешудің нақты, қадамдық жоспары. Күнделікті өмірде де алгоритм бар: шай демдеу, жолдан өту.</p><p><b>Есеп шығару жолы:</b></p><ol><li>Есепті мұқият оқы: не берілген, не табу керек?</li><li>Қадамдарға бөліп жоспар құр (қағазға жаз).</li><li>Жоспарды кодқа айналдыр.</li><li>Кіші мысалмен тексер.</li></ol><p><b>Типтік алгоритмдер:</b></p><ul><li><b>Қосынды:</b> <code>қ = 0</code> жаса, әр санды <code>қ += i</code> арқылы қос;</li><li><b>Санау:</b> шартқа сай элемент санын <code>k += 1</code> арқылы санау;</li><li><b>Ең үлкен сан:</b> алғашқы санды ең үлкен деп ал, әрқайсысын салыстыра отырып жаңарт.</li></ul><p><code>қ += i</code> жазуы <code>қ = қ + i</code> дегенмен бірдей.</p>",
+  explain:"<ol><li><code>қ = 0</code> — қосынды басында нөл.</li><li><code>for i in range(1, 11)</code> — i = 1…10.</li><li><code>қ += i</code> — әр санды қосады: 1, 3, 6, 10 … 55.</li><li><code>print(қ)</code> — нәтиже 55.</li></ol>",
+  example:'қ = 0\nfor i in range(1, 11):\n    қ += i\nprint(қ)',
+  task:"1-ден 100-ге дейінгі сандардың қосындысын тап.", need:["for","+=","print"],
+  tests:[
+   {q:"Алгоритм дегеніміз не?", o:["Компьютер түрі","Есепті шешудің қадамдық жоспары","Бағдарлама тілі"], a:1, why:"Алгоритм — есепті шешу қадамдарының реттелген тізбегі."},
+   {q:"қ = 0; for i in range(1, 4): қ += i — қ неге тең болады?", o:["3","6","10"], a:1, why:"1 + 2 + 3 = 6 (4 кірмейді)."}]},
+
+ {title:"Қорытынды жоба", desc:"Өз бағдарламаң",
+  tip:"Жобада input(), if, цикл және функция болсын. Бөліктеп жазып, әрқайсысын тексер.",
+  lecture:"<p>Қорытынды жобада 10 сабақта алған білімді біріктіріп, өз бағдарламаңды жасайсың.</p><p><b>Жоба жоспары:</b></p><ol><li>Идея таңда: «Санды тап» ойыны, калькулятор, викторина, сәлемдесуші бот.</li><li>Не енгізіледі (<code>input</code>), не шығады (<code>print</code>) — анықта.</li><li>Шарттар (<code>if</code>) мен цикл (<code>while</code>/<code>for</code>) қос.</li><li>Қайталанатын жерді функцияға шығар.</li><li>Бөліктеп жаз, әр бөлігін бірден тексер.</li></ol><p><b>Жақсы жобаға қойылатын талап:</b> кемінде <code>input()</code>, <code>if</code>, цикл және функция болсын.</p><p><b>Есте сақта:</b> <code>input()</code> әрқашан мәтін қайтарады. Сан керек болса: <code>int(input('Сан: '))</code>. Кездейсоқ сан үшін <code>import random</code> жазып, <code>random.randint(1, 10)</code> қолданамыз.</p>",
+  explain:"<ol><li><code>def сәлем(аты)</code> — аты параметрі бар функция.</li><li><code>input(\"Атың кім? \")</code> — пернетақтадан атыңды сұрайды.</li><li><code>print(сәлем(аты))</code> — функцияны шақырып, нәтижені экранға шығарады.</li></ol>",
+  example:'def сәлем(аты):\n    return f"Сәлем, {аты}!"\nаты = input("Атың кім? ")\nprint(сәлем(аты))',
+  task:"input() арқылы деректі алып, print арқылы жауап беретін бағдарлама жаз.", need:["input","print"],
+  tests:[
+   {q:"input() қандай типті мән қайтарады?", o:["int (бүтін сан)","str (мәтін)","float (бөлшек)"], a:1, why:"input() әрқашан мәтін қайтарады. Сан керек болса int() қолданылады."},
+   {q:"random.randint(1, 10) не істейді?", o:["1-ден 10-ға дейінгі кездейсоқ бүтін сан таңдайды","Санды 10-ға көбейтеді","10 рет қайталайды"], a:0, why:"randint(a, b) — a мен b арасындағы кездейсоқ бүтін сан."}]}
+];
+
+const faq = [
+ {q:"Неге қате шықты? (отступ)", words:["қате","error","отступ","жылжы","бос орын"], a:"Ең жиі қате: 1) тырнақша жабылмаған, 2) if/for/def соңында : жоқ, 3) келесі жол 4 бос орынмен ішке жылжымаған."},
+ {q:"= мен == айырмашылығы неде?", words:["==","теңдік","салыстыр","тең"], a:"= мән береді: жас = 12. == салыстырады: жас == 12 (нәтиже True не False)."},
+ {q:"Тырнақша неге керек?", words:["тырнақша","кавычка","мәтін"], a:"Тырнақшадағы — мәтін: print(\"Али\"). Тырнақшасыз Али — айнымалының аты деп саналады."},
+ {q:"range(5) неге 5-ті шығармайды?", words:["range","рейндж","5","бес"], a:"range(5) — 0,1,2,3,4. Санау 0-ден басталады, соңғы сан кірмейді. 1-ден 5-ке дейін керек болса: range(1, 6)."},
+ {q:"Индекс неге 0-ден басталады?", words:["индекс","нөл","0-ден","тізім"], a:"Python-да санау 0-ден басталады: ж[0] — бірінші, ж[1] — екінші элемент."},
+ {q:"input() неге мәтін қайтарады?", words:["input","int","енгіз","сан"], a:"input() әрқашан мәтін береді. Сан керек болса: сан = int(input(\"Сан: \"))."},
+ {q:"print пен return айырмасы?", words:["return","print","қайтар"], a:"print — экранға шығарады, көрсетеді ғана. return — нәтижені функциядан қайтарады, оны әрі қарай қолдануға болады."},
+ {q:"Цикл тоқтамай қойды, не істеу керек?", words:["цикл","while","тоқта","шексіз"], a:"while шартын өзгертпесең, цикл шексіз болады. Ішінде n -= 1 сияқты өзгеріс жаз. Тоқтату: Ctrl + C."},
+ {q:"Функция жасадым, бірақ жұмыс істемейді", words:["функция","def","шақыр"], a:"def тек функцияны жасайды. Оны шақыру керек: квадрат(5). Жақшасыз жазба, жақша міндетті."}
+];
+
+// ===== Күй: нәтиже сақтайтын айнымалылар =====
+let done = [];     // орындалған сабақтар нөмірі
+let scored = [];   // дұрыс жауап берілген тест сұрақтары
+let current = -1;  // ашық тұрған сабақ
+let sending = false;
+const badgeIcons = ["🦸","⚡","🔥","🛡️","🚀","💎","🌟","🧠","🏆","👑"];
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+// ===== Балл ережесі: мәндерді осы жерден өзгертуге болады =====
+const TASK_POINTS = 1;     // практикалық тапсырма үшін
+const TEST_POINTS = 0.5;   // әр дұрыс тест жауабы үшін
+const fmt = n => String(+n.toFixed(2));
+const lessonMax = i => TASK_POINTS + lessons[i].tests.length * TEST_POINTS;
+const MAX_POINTS = lessons.reduce((s, l, i) => s + lessonMax(i), 0);   // қазір 20
+function testPoints(i){              // i-ші сабақтың тесттерінен алынған балл
+  let p = 0;
+  for(let j = 0; j < lessons[i].tests.length; j++) if(scored.includes(i + "_" + j)) p += TEST_POINTS;
+  return p;
+}
+function lessonPoints(i){ return (done.includes(i) ? TASK_POINTS : 0) + testPoints(i); }
+function totalPoints(){ return lessons.reduce((s, l, i) => s + lessonPoints(i), 0); }
+function showToast(msg){
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(showToast.t); showToast.t = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+// ===== Бетті жаңарту: карточкалар, балл, бейдждер =====
+function showLessons(){
+  const total = totalPoints();
+  $("lessonList").innerHTML = lessons.map((l, i) => {
+    const d = done.includes(i), p = lessonPoints(i);
+    return `<article class="card lcard ${d ? "is-done" : ""}">
+      <div class="lnum">${String(i+1).padStart(2,"0")}</div>
+      <h3>${l.title}</h3><p>${l.desc}</p>
+      <div class="lmeta"><span class="chip ${d ? "ok" : ""}">${d ? "✓ Орындалды" : "Басталмады"}</span><span>Балл: <b>${fmt(p)}</b>/${fmt(lessonMax(i))}</span></div>
+      <button class="btn btn-primary" onclick="openLesson(${i})">${d ? "Қайталау" : "Сабақты бастау"}</button>
+    </article>`;
+  }).join("");
+
+  $("doneCount").textContent = done.length;
+  $("points").textContent = fmt(total);
+  $("hdrScore").textContent = fmt(total);
+  $("maxScore").textContent = $("statMax").textContent = fmt(MAX_POINTS);
+  document.querySelectorAll(".maxTxt").forEach(e => e.textContent = fmt(MAX_POINTS));
+  $("ringFill").style.strokeDashoffset = 326.73 * (1 - total / MAX_POINTS);
+  const pct = Math.round(total / MAX_POINTS * 100);
+  $("overallBar").style.width = pct + "%";
+  $("overallTxt").textContent = pct + "%";
+  $("badges").innerHTML = badgeIcons.map((ic, i) => {
+    const on = done.includes(i), half = !on && testPoints(i) > 0;
+    return `<div class="bd ${on ? "on" : half ? "half" : ""}" title="${on ? "Бейдж алынды" : "Бейдж алу үшін практикалық тапсырманы орында"}"><span>${ic}</span><small>${on ? i+1 + "-сабақ ✓" : half ? "тапсырма керек" : i+1 + "-сабақ"}</small></div>`;
+  }).join("");
+}
+
+// ===== Сабақ терезесі: лекция, түсіндірме, мысал, тапсырма, 2 тест =====
+function openLesson(i){
+  current = i;
+  const l = lessons[i];
+  const tests = l.tests.map((t, j) => {
+    const solved = scored.includes(i + "_" + j);
+    const opts = t.o.map((o, k) =>
+      `<button class="opt ${solved && k == t.a ? "ok" : ""}" ${solved ? "disabled" : ""} onclick="checkAnswer(${i},${j},${k},this)">${o}</button>`).join("");
+    return `<div class="q"><p class="qt">${j+1}-сұрақ. ${t.q}</p>${opts}
+      <p class="res" id="testResult${j}" ${solved ? 'data-solved="1"' : ""}>${solved ? '<span class="t-ok">✔ Дұрыс!</span> ' + t.why : ""}</p></div>`;
+  }).join("");
+  const need = l.need.map(w => `<code>${esc(w)}</code>`).join(" ");
+
+  $("lessonBox").innerHTML = `
+    <div class="mhead">
+      <div><span class="eyebrow" style="margin-bottom:4px">${i+1}-сабақ · 10 сабақтан</span><h2>${l.title}</h2></div>
+      <button class="x" onclick="closeLesson()" aria-label="Жабу">✕</button>
+    </div>
+    <div class="mbody">
+      <section class="msec"><h3><span>📖</span>Лекция</h3><div class="prose">${l.lecture}</div></section>
+      <section class="msec"><h3><span>💡</span>Түсіндірме</h3><div class="prose">${l.explain}</div></section>
+      <section class="msec"><h3><span>🧪</span>Мысал</h3>
+        <div class="codewin ex"><div class="codebar"><i></i><i></i><i></i><span>мысал.py</span><button class="copy" onclick="copyExample()">Көшіру</button></div><pre>${esc(l.example)}</pre></div>
+      </section>
+      <section class="msec"><h3><span>✍️</span>Практикалық тапсырма <small style="font-weight:500;color:var(--muted)">(${fmt(TASK_POINTS)} балл)</small></h3>
+        <div class="task"><p><b>${l.task}</b></p><div class="need">Кодта болуы керек: ${need}</div></div>
+        <textarea class="editor" id="myCode" spellcheck="false" placeholder="Кодты осында жаз..."></textarea>
+        <div style="margin-top:10px"><button class="btn btn-primary" onclick="checkCode(${i})">Тексеру</button></div>
+        <p id="codeResult" role="status"></p>
+      </section>
+      <section class="msec"><h3><span>📝</span>Тест <small style="font-weight:500;color:var(--muted)">(${l.tests.length} сұрақ, әрқайсысы ${fmt(TEST_POINTS)} балл)</small></h3>${tests}</section>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-line" ${i == 0 ? "disabled" : ""} onclick="openLesson(${i-1})">← Алдыңғы</button>
+      <button class="btn btn-line" ${i == lessons.length-1 ? "disabled" : ""} onclick="openLesson(${i+1})">Келесі →</button>
+    </div>`;
+  $("window").classList.add("open");
+  $("window").scrollTop = 0;
+  document.body.classList.add("lock");
+  say("<b>" + (i+1) + "-сабақ кеңесі:</b> " + esc(l.tip));   // ZanYer түсіндіреді
+}
+function closeLesson(){ $("window").classList.remove("open"); document.body.classList.remove("lock"); current = -1; }
+function copyExample(){
+  const text = lessons[current].example;
+  (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(
+    () => showToast("Код көшірілді"), () => showToast("Көшіру мүмкін болмады"));
+}
+
+// ===== Кодты тексеру: керекті сөздердің бәрі бар ма? =====
+function checkCode(i){
+  const code = $("myCode").value, res = $("codeResult");
+  const missing = lessons[i].need.filter(w => !code.includes(w));
+  if(code.trim() != "" && missing.length == 0){
+    const first = !done.includes(i);
+    if(first){ done.push(i); showToast(badgeIcons[i] + " Жаңа бейдж алдың! +" + fmt(TASK_POINTS) + " балл"); }
+    res.innerHTML = '<span class="t-ok">✅ Тамаша! Тапсырма орындалды' + (first ? " (+" + fmt(TASK_POINTS) + " балл)" : "") + '</span>';
+    say("Жарайсың! Тапсырма орындалды 🎉");
+    showLessons();
+  } else if(code.trim() == ""){
+    res.innerHTML = '<span class="t-bad">❌ Алдымен код жаз.</span>';
+  } else {
+    res.innerHTML = '<span class="t-bad">❌ Әлі толық емес. Жетіспейді: ' + missing.map(w => "<code>" + esc(w) + "</code>").join(" ") + ' — мысалға қара.</span>';
+  }
+}
+
+// ===== Тест жауабын тексеру: дұрыс жауап = TEST_POINTS балл =====
+function checkAnswer(i, j, k, btn){
+  const t = lessons[i].tests[j], key = i + "_" + j, res = $("testResult" + j);
+  if(res.dataset.solved) return;
+  if(k == t.a){
+    let mark = "";
+    if(!scored.includes(key)){ scored.push(key); mark = "+" + fmt(TEST_POINTS) + " балл. "; }   // қайталап балл алмайды
+    btn.classList.add("ok");
+    res.dataset.solved = "1";
+    btn.parentElement.querySelectorAll(".opt").forEach(b => b.disabled = true);
+    res.innerHTML = '<span class="t-ok">✔ Дұрыс! ' + mark + '</span>' + t.why;
+    showLessons();
+  } else {
+    btn.classList.add("no"); btn.disabled = true;
+    res.innerHTML = '<span class="t-bad">✘ Қате.</span> Тағы байқап көр.';
+  }
+}
+
+// ===== Көмекші ZanYer =====
+let chatOpen = false;
+function addMsg(html, who){
+  const d = document.createElement("div");
+  d.className = "msg " + who; d.innerHTML = html;
+  $("chatLog").appendChild(d);
+  $("chatLog").scrollTop = $("chatLog").scrollHeight;
+}
+function say(html){ addMsg(html, "bot"); if(!chatOpen) $("fabDot").hidden = false; }
+function toggleChat(force){
+  chatOpen = typeof force == "boolean" ? force : !chatOpen;
+  $("chat").hidden = !chatOpen;
+  if(chatOpen){ $("fabDot").hidden = true; $("askInput").focus(); }
+}
+function askFaq(i){ addMsg(esc(faq[i].q), "me"); say(esc(faq[i].a)); }
+
+$("questions").innerHTML = "<small>Жиі қойылатын сұрақтар:</small>" + faq.map((f, i) => `<button onclick="askFaq(${i})">${esc(f.q)}</button>`).join("");
+addMsg("Сәлем! Мен ZanYer-мін 🦸 Түсініксіз сұрақты таңда немесе төменге жаз:", "bot");
+
+// "Сұрақ" жолына жазғанда: осыған ұқсас дайын сұрақтарды ұсынады
+function suggest(pressEnter){
+  const text = $("askInput").value.toLowerCase().trim();
+  if(text == ""){ $("suggest").innerHTML = ""; return; }
+  const found = [];
+  faq.forEach((f, i) => { if(f.words.some(w => text.includes(w)) || f.q.toLowerCase().includes(text)) found.push(i); });
+  if(pressEnter && found.length){ askFaq(found[0]); $("askInput").value = ""; $("suggest").innerHTML = ""; return; }
+  let html = found.length ? "<small>Осы сұрақ па?</small>" : "<small>Ұқсас сұрақ табылмады. Төмендегіден таңда 👇</small>";
+  for(const i of found.slice(0, 3)) html += `<button onclick="askFaq(${i})">${esc(faq[i].q)}</button>`;
+  $("suggest").innerHTML = html;
+}
+
+// ===== Беттер: сілтемені басқанда басқа бетке ауысады =====
+const pages = ["top","about","lessons","ach","project"];
+function route(page){
+  let h = page || location.hash.replace("#", "");
+  if(!pages.includes(h)) h = "top";
+  document.querySelectorAll(".page").forEach(p => { p.hidden = p.id != h; });
+  document.querySelectorAll(".links a").forEach(a => a.classList.toggle("on", a.getAttribute("href") == "#" + h));
+  if($("window").classList.contains("open")) closeLesson();
+  window.scrollTo(0, 0);
+}
+// Сілтемені басқанда бетті JavaScript өзі ауыстырады (кез келген ортада жұмыс істейді)
+document.addEventListener("click", e => {
+  const a = e.target.closest('a[href^="#"]');
+  if(!a) return;
+  const h = a.getAttribute("href").slice(1);
+  if(!pages.includes(h)) return;
+  e.preventDefault();
+  try { history.pushState(null, "", "#" + h); } catch(err) {}
+  route(h);
+});
+window.addEventListener("hashchange", () => route());
+window.addEventListener("popstate", () => route());
+
+// ===== GOOGLE SHEETS: нәтижені онлайн кестеге жіберу =====
+
+async function saveResults(){
+  if(sending) return;
+  const name = $("stName").value.trim(), cls = $("stClass").value.trim(), info = $("sendInfo");
+  if(!name || !cls){
+    info.innerHTML = '<span class="t-bad">Аты-жөніңді және сыныбыңды жаз!</span>';
+    (name ? $("stClass") : $("stName")).focus();
+    return;
+  }
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(scriptURL)){
+    info.innerHTML = '<span class="t-bad">Google сілтемесі қойылмаған: файлдың басындағы scriptURL жолына Web app URL қой.</span>';
+    return;
+  }
+  const payload = { name: name, cls: cls, total: totalPoints() };   // тек аты, сыныбы және жалпы балл
+
+  sending = true; $("sendBtn").disabled = true;
+  info.textContent = "Жіберілуде...";
+  try {
+    await fetch(scriptURL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    info.innerHTML = '<span class="t-ok">✅ ' + esc(name) + ': ' + payload.total + ' балл. Нәтиже Google Sheets-ке жіберілді.</span>';
+    showToast("Нәтиже жіберілді ✅");
+  } catch(e) {
+    info.innerHTML = '<span class="t-bad">❌ Қате шықты. Интернетті тексер.</span>';
+  }
+  sending = false; $("sendBtn").disabled = false;
+}
+
+// ===== Басқару: Esc, фонға басу =====
+document.addEventListener("keydown", e => {
+  if(e.key == "Escape"){ if($("window").classList.contains("open")) closeLesson(); else if(chatOpen) toggleChat(false); }
+});
+$("window").addEventListener("click", e => { if(e.target.id == "window") closeLesson(); });
+
+// сайт ашылғанда карточкаларды шығару
+showLessons();
+route();
+</script>
+</body>
+</html>
